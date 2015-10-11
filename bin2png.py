@@ -35,7 +35,7 @@ def choose_file_dimensions(infile, input_dimensions = None):
     num_bytes = len(infile)
     num_pixels = int(math.ceil(float(num_bytes)))
     sqrt = math.sqrt(num_pixels)
-    sqrt_max = int(math.ceil(sqrt))
+    sqrt = int(math.ceil(sqrt))
 
     if input_dimensions is not None and len(input_dimensions) >= 1:
         if input_dimensions[0] is not None:
@@ -51,23 +51,12 @@ def choose_file_dimensions(infile, input_dimensions = None):
             else:
                 return (num_pixels / input_dimensions[1] + 1, input_dimensions[1])
 
-    best_dimensions = None
-    best_extra_bytes = None
-    for i in range(int(sqrt_max), 0, -1):
-        is_perfect = num_pixels % i == 0
-        if is_perfect:
-            dimensions = (i, num_pixels / i)
-        else:
-            dimensions = (i, num_pixels / i + 1)
-        extra_bytes = dimensions[0] * dimensions[1] - num_bytes
-        if dimensions[0]*dimensions[1] >= num_pixels and (best_dimensions is None or extra_bytes < best_extra_bytes):
-            best_dimensions = dimensions
-            best_extra_bytes = extra_bytes
-        if is_perfect:
-            break
-    if best_extra_bytes > 0:
-        sys.stderr.write("Could not find PNG dimensions that perfectly encode %s bytes; the encoding will be tail-padded with %s zeros.\n" % (num_bytes, best_extra_bytes))
-    return best_dimensions
+    if num_pixels % sqrt == 0:
+        dimensions = (sqrt, num_pixels / sqrt)
+    else:
+        dimensions = (sqrt, num_pixels / sqrt + 1)
+
+    return dimensions
 
 def file_to_png(infile, outfile, dimensions = None):
     dimensions = choose_file_dimensions(infile, dimensions)
@@ -106,6 +95,11 @@ def png_to_file(infile, outfile):
             b_hi = b_hi / 16
             b_lo = b_lo / 16
             parity = parity / 16
+
+            if (b_hi, b_lo, parity) == (0, 0, 0):
+                # End of File
+                break
+
             if (b_hi * 13 + b_lo * 7 + 3) % 16 != parity:
                 sys.stderr.write("wrong parity, (%d, %d, %d)", b_hi, b_lo, parity)
             outfile.write(chr(b_hi * 16 + b_lo))
