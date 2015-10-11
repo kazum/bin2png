@@ -33,7 +33,7 @@ def choose_file_dimensions(infile, input_dimensions = None):
     if not isinstance(infile, FileReader):
         infile = FileReader(infile)
     num_bytes = len(infile)
-    num_pixels = int(math.ceil(float(num_bytes) / 3.0))
+    num_pixels = int(math.ceil(float(num_bytes)))
     sqrt = math.sqrt(num_pixels)
     sqrt_max = int(math.ceil(sqrt))
 
@@ -59,7 +59,7 @@ def choose_file_dimensions(infile, input_dimensions = None):
             dimensions = (i, num_pixels / i)
         else:
             dimensions = (i, num_pixels / i + 1)
-        extra_bytes = dimensions[0] * dimensions[1] * 3 - num_bytes
+        extra_bytes = dimensions[0] * dimensions[1] - num_bytes
         if dimensions[0]*dimensions[1] >= num_pixels and (best_dimensions is None or extra_bytes < best_extra_bytes):
             best_dimensions = dimensions
             best_extra_bytes = extra_bytes
@@ -76,9 +76,10 @@ def file_to_png(infile, outfile, dimensions = None):
     row = 0
     column = -1
     while True:
-        b = infile.read(3)
+        b = infile.read(1)
         if not b:
             break
+        b = ord(b[0])
 
         column += 1
         if column >= img.size[0]:
@@ -87,11 +88,10 @@ def file_to_png(infile, outfile, dimensions = None):
             if row >= img.size[1]:
                 raise Exception("TODO: Write exception!")
                 
-        color = [ord(b[0]), 0, 0]
-        if len(b) > 1:
-            color[1] = ord(b[1])
-        if len(b) > 2:
-            color[2] = ord(b[2])
+        b_hi = b / 16
+        b_lo = b % 16
+        parity = (b_hi * 13 + b_lo * 7 + 3) % 16
+        color = [b_hi * 16 + 8, b_lo * 16 + 8, parity * 16 + 8]
 
         pixels[column,row] = tuple(color)
 
@@ -102,10 +102,13 @@ def png_to_file(infile, outfile):
     rgb_im = img.convert('RGB')
     for row in range(img.size[1]):
         for col in range(img.size[0]):
-            r, g, b = rgb_im.getpixel((col, row))
-            outfile.write(chr(r))
-            outfile.write(chr(g))
-            outfile.write(chr(b))
+            b_hi, b_lo, parity = rgb_im.getpixel((col, row))
+            b_hi = b_hi / 16
+            b_lo = b_lo / 16
+            parity = parity / 16
+            if (b_hi * 13 + b_lo * 7 + 3) % 16 != parity:
+                sys.stderr.write("wrong parity, (%d, %d, %d)", b_hi, b_lo, parity)
+            outfile.write(chr(b_hi * 16 + b_lo))
 
 if __name__ == "__main__":
     import argparse
